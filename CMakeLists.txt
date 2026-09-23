@@ -19,7 +19,6 @@ juce_add_gui_app(FoxStudioDaw
     COMPANY_NAME "Fox Studio"
     BUNDLE_ID com.foxstudio.daw
     VERSION "${PROJECT_VERSION}")
-
 juce_generate_juce_header(FoxStudioDaw)
 
 target_sources(FoxStudioDaw PRIVATE
@@ -32,15 +31,9 @@ target_sources(FoxStudioDaw PRIVATE
     Source/MixerComponent.cpp
     Source/PianoRollComponent.cpp
     Source/ProjectManager.cpp
-    Source/TracktionBridge.cpp
-    Source/ProjectSummary.cpp
-    Source/ExportManager.cpp
-    Source/DSP/DspChain.cpp
-    Source/DSP/GainProcessor.cpp
-    Source/DSP/EqProcessor.cpp
-    Source/DSP/CompressorProcessor.cpp
-    Source/DSP/LimiterProcessor.cpp
-    Source/DSP/SaturationProcessor.cpp)
+    Source/ExportManager.cpp)
+
+target_include_directories(FoxStudioDaw PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 
 target_compile_definitions(FoxStudioDaw PRIVATE
     JUCE_WEB_BROWSER=0
@@ -54,6 +47,7 @@ target_link_libraries(FoxStudioDaw PRIVATE
     juce::juce_audio_utils
     juce::juce_gui_extra
     juce::juce_dsp
+    juce::juce_audio_formats
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
 

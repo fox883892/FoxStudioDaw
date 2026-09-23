@@ -23,7 +23,7 @@ public:
         if (writer == nullptr)
             return false;
 
-        writer->writeFromAudioSampleData(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), 0);
+        writer->writeFromAudioSampleData(buffer.getArrayOfWritePointers(), static_cast<int>(buffer.getNumChannels()), static_cast<int>(buffer.getNumSamples()), 0);
         return true;
     }
 };

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <vector>
 #include <juce_core/juce_core.h>
+#include "FoxStudioEngine.h"
 
 struct ProjectTrack
 {

@@ -4,22 +4,13 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
-#include <juce_gui_basics/juce_gui_basics.h>
 
 class TrackInfo
 {
 public:
-    enum class Type
-    {
-        Audio,
-        Midi
-    };
-
+    enum class Type { Audio, Midi };
     TrackInfo() = default;
-    TrackInfo(Type t, const juce::String& n)
-        : type(t), name(n)
-    {
-    }
+    TrackInfo(Type t, const juce::String& n) : type(t), name(n) {}
 
     Type type = Type::Audio;
     juce::String name = "Track";
@@ -49,27 +40,25 @@ public:
     FoxStudioEngine();
     ~FoxStudioEngine();
 
-    juce::AudioDeviceManager& getAudioDeviceManager() noexcept { return deviceManager; }
     bool initialiseAudio();
     void shutdownAudio();
+    void prepareToPlay(double newSampleRate) noexcept;
 
-    void startPlayback();
-    void stopPlayback();
+    void startPlayback() noexcept { playing = true; }
+    void stopPlayback() noexcept { playing = false; positionSeconds = 0.0; }
     bool isPlaying() const noexcept { return playing; }
 
-    void setPosition(double seconds);
+    void setPosition(double seconds) noexcept;
     double getPosition() const noexcept { return positionSeconds; }
-
-    void setTempo(double bpm);
+    void setTempo(double bpm) noexcept;
     double getTempo() const noexcept { return tempoBpm; }
-
     void setLoopEnabled(bool enabled) noexcept { loopEnabled = enabled; }
     bool isLoopEnabled() const noexcept { return loopEnabled; }
 
     void addTrack(TrackInfo::Type type, const juce::String& name = "Track");
     void addMidiNoteToTrack(const juce::String& trackName, int midiNote, double startBeat, double lengthBeats);
-    void processAudio(juce::AudioBuffer<float>& buffer, int numSamples);
-    bool exportProjectAsWav(const juce::File& targetFile) const;
+    void processAudio(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept;
+    bool exportProjectAsWav(const juce::File& targetFile, double durationSeconds = 8.0) const;
 
     std::vector<TrackInfo>& getTracks() noexcept { return tracks; }
     const std::vector<TrackInfo>& getTracks() const noexcept { return tracks; }
@@ -78,6 +67,8 @@ public:
     void updateTrack(size_t index, const TrackInfo& track);
 
 private:
+    void renderBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples, double timeSeconds) const noexcept;
+
     juce::AudioDeviceManager deviceManager;
     std::vector<TrackInfo> tracks;
     std::vector<TrackDefinition> trackDefinitions;

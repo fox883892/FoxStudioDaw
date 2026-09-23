@@ -1,54 +1,32 @@
 #pragma once
 
+#include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "FoxStudioEngine.h"
-#include "ProjectManager.h"
-#include "TracktionBridge.h"
-#include "TransportBar.h"
-#include "TrackList.h"
-#include "TimelineComponent.h"
-#include "MixerComponent.h"
-#include "PianoRollComponent.h"
-#include "AI/AiAdvisor.h"
 
-class MainComponent final : public juce::Component, private juce::Timer
+class MainComponent final : public juce::AudioAppComponent, private juce::Timer
 {
 public:
     MainComponent();
     ~MainComponent() override;
-
+    void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
+    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
+    void releaseResources() override;
     void paint(juce::Graphics&) override;
     void resized() override;
 
 private:
     void timerCallback() override;
-    void togglePlay();
-    void stopPlayback();
+    void toggleTransport();
     void resetSession();
-    void updateAiStatus();
-    void saveCurrentProject();
-    void loadDefaultProject();
+    juce::String formatTime(double) const;
 
     FoxStudioEngine engine;
-    ProjectManager projectManager;
-    TracktionBridge tracktionBridge;
-    TransportBar transportBar{ engine };
-    TrackList trackList{ engine };
-    TimelineComponent timeline{ engine };
-    MixerComponent mixerComponent{ engine };
-    PianoRollComponent pianoRollComponent;
-
-    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
-    juce::Label titleLabel;
-    juce::Label projectLabel;
-    juce::Label statusLabel;
-    juce::Label aiSummaryLabel;
-    juce::TextButton saveButton { "Save" };
-    juce::TextButton loadButton { "Load" };
-    juce::TextButton exportButton { "Export" };
-
-    ProjectSession currentSession;
-    AIAdvisor aiAdvisor;
-
+    juce::TextButton newButton{"New"}, playButton{"Play"}, stopButton{"Stop"}, exportButton{"Export WAV"};
+    juce::TextButton addAudioButton{"+ Audio"}, addMidiButton{"+ MIDI"};
+    juce::ToggleButton loopButton{"Loop"};
+    juce::Label titleLabel, transportLabel, statusLabel, trackLabel;
+    juce::Slider tempoSlider;
+    double sampleRate = 44100.0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

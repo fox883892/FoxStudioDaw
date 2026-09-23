@@ -1,52 +1,30 @@
 #include "FoxStudioEngine.h"
+#include <algorithm>
+#include <cmath>
 
 FoxStudioEngine::FoxStudioEngine()
 {
-    initialiseAudio();
     addTrack(TrackInfo::Type::Audio, "Drums");
     addTrack(TrackInfo::Type::Audio, "Bass");
     addTrack(TrackInfo::Type::Midi, "Lead");
-
     addMidiNoteToTrack("Lead", 60, 0.0, 1.0);
     addMidiNoteToTrack("Lead", 64, 1.0, 1.0);
     addMidiNoteToTrack("Lead", 67, 2.0, 1.0);
     addMidiNoteToTrack("Lead", 72, 3.0, 2.0);
 }
 
-FoxStudioEngine::~FoxStudioEngine()
-{
-    shutdownAudio();
-}
+FoxStudioEngine::~FoxStudioEngine() { shutdownAudio(); }
 
-bool FoxStudioEngine::initialiseAudio()
-{
-    const auto result = deviceManager.initialise(2, 2, nullptr, true);
-    return result == juce::AudioDeviceManager::InitialisationResult::success;
-}
+bool FoxStudioEngine::initialiseAudio() { return true; }
+void FoxStudioEngine::shutdownAudio() { playing = false; }
+void FoxStudioEngine::prepareToPlay(double newSampleRate) noexcept { sampleRate = juce::jmax(1.0, newSampleRate); }
 
-void FoxStudioEngine::shutdownAudio()
-{
-    deviceManager.closeAudioDevice();
-    playing = false;
-}
-
-void FoxStudioEngine::startPlayback()
-{
-    playing = true;
-}
-
-void FoxStudioEngine::stopPlayback()
-{
-    playing = false;
-    positionSeconds = 0.0;
-}
-
-void FoxStudioEngine::setPosition(double seconds)
+void FoxStudioEngine::setPosition(double seconds) noexcept
 {
     positionSeconds = juce::jlimit(0.0, 3600.0, seconds);
 }
 
-void FoxStudioEngine::setTempo(double bpm)
+void FoxStudioEngine::setTempo(double bpm) noexcept
 {
     tempoBpm = juce::jlimit(40.0, 240.0, bpm);
 }
@@ -54,133 +32,80 @@ void FoxStudioEngine::setTempo(double bpm)
 void FoxStudioEngine::addTrack(TrackInfo::Type type, const juce::String& name)
 {
     tracks.emplace_back(type, name);
-    TrackDefinition definition;
-    definition.info = tracks.back();
-    trackDefinitions.push_back(definition);
+    trackDefinitions.push_back({ tracks.back(), {} });
 }
 
 void FoxStudioEngine::addMidiNoteToTrack(const juce::String& trackName, int midiNote, double startBeat, double lengthBeats)
 {
-    for (auto& definition : trackDefinitions)
-    {
-        if (definition.info.name == trackName)
-        {
-            MidiNoteData note;
-            note.midiNote = midiNote;
-            note.startBeat = startBeat;
-            note.lengthBeats = lengthBeats;
-            definition.notes.push_back(note);
-            return;
-        }
-    }
+    for (auto& track : trackDefinitions)
+        if (track.info.name == trackName)
+            track.notes.push_back({ juce::jlimit(0, 127, midiNote), juce::jmax(0.0, startBeat), juce::jmax(0.01, lengthBeats) });
 }
 
-void FoxStudioEngine::processAudio(juce::AudioBuffer<float>& buffer, int numSamples)
+void FoxStudioEngine::renderBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples, double timeSeconds) const noexcept
 {
-    buffer.clear();
-    buffer.setSize(2, numSamples);
-
     const double secondsPerBeat = 60.0 / tempoBpm;
-    const double globalTime = positionSeconds;
-
-    for (auto& definition : trackDefinitions)
+    for (int i = 0; i < numSamples; ++i)
     {
-        if (definition.info.muted)
-            continue;
-
-        const auto gain = juce::Decibels::decibelsToGain(static_cast<float>(definition.info.gainDb));
-        const auto pan = juce::jlimit(-1.0, 1.0, definition.info.pan);
-
-        for (int i = 0; i < numSamples; ++i)
+        const double time = timeSeconds + static_cast<double>(i) / sampleRate;
+        double left = 0.0, right = 0.0;
+        for (const auto& track : trackDefinitions)
         {
-            const double sampleTime = globalTime + (double)i / sampleRate;
-            double sampleValue = 0.0;
-
-            for (const auto& note : definition.notes)
+            if (track.info.muted) continue;
+            const auto gain = juce::Decibels::decibelsToGain(static_cast<float>(track.info.gainDb));
+            const auto pan = juce::jlimit(-1.0, 1.0, track.info.pan);
+            for (const auto& note : track.notes)
             {
-                const auto noteStart = note.startBeat * secondsPerBeat;
-                const auto noteEnd = noteStart + note.lengthBeats * secondsPerBeat;
-                if (sampleTime < noteStart || sampleTime > noteEnd)
-                    continue;
-
-                const double notePhase = (sampleTime - noteStart) / std::max(0.0001, noteEnd - noteStart);
+                const double begin = note.startBeat * secondsPerBeat;
+                const double end = begin + note.lengthBeats * secondsPerBeat;
+                if (time < begin || time >= end) continue;
                 const double frequency = 440.0 * std::pow(2.0, (note.midiNote - 69.0) / 12.0);
-                const double envelope = std::sin(juce::MathConstants<double>::pi * notePhase);
-                sampleValue += (std::sin(2.0 * juce::MathConstants<double>::pi * frequency * sampleTime) * envelope);
+                const double phase = (time - begin) * frequency;
+                const double attackRelease = std::sin(juce::MathConstants<double>::pi * (time - begin) / (end - begin));
+                const double value = std::sin(juce::MathConstants<double>::twoPi * phase) * attackRelease * gain * 0.10;
+                left += value * std::max(0.0, 1.0 - pan);
+                right += value * std::max(0.0, 1.0 + pan);
             }
-
-            const float leftGain = static_cast<float>(std::max(0.0, 1.0 - pan) * gain);
-            const float rightGain = static_cast<float>(std::max(0.0, 1.0 + pan) * gain);
-            buffer.addSample(0, i, sampleValue * leftGain * 0.12f);
-            buffer.addSample(1, i, sampleValue * rightGain * 0.12f);
         }
+        buffer.addSample(0, startSample + i, static_cast<float>(left));
+        if (buffer.getNumChannels() > 1) buffer.addSample(1, startSample + i, static_cast<float>(right));
     }
 }
 
-bool FoxStudioEngine::exportProjectAsWav(const juce::File& targetFile) const
+void FoxStudioEngine::processAudio(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept
 {
-    juce::WavAudioFormat wavFormat;
-    auto writer = wavFormat.createWriterFor(new juce::File(targetFile), sampleRate, 2, 16, {}, 0);
-    if (writer == nullptr)
-        return false;
+    if (!playing || buffer.getNumChannels() == 0) return;
+    renderBlock(buffer, startSample, numSamples, positionSeconds);
+    positionSeconds += static_cast<double>(numSamples) / sampleRate;
+    if (loopEnabled && positionSeconds >= 8.0) positionSeconds = 0.0;
+}
 
-    juce::AudioBuffer<float> buffer;
-    const int totalSamples = static_cast<int>(std::ceil(30.0 * sampleRate));
-    buffer.setSize(2, totalSamples);
-    buffer.clear();
+bool FoxStudioEngine::exportProjectAsWav(const juce::File& targetFile, double durationSeconds) const
+{
+    juce::WavAudioFormat format;
+    auto output = targetFile.getParentDirectory();
+    output.createDirectory();
+    auto writer = format.createWriterFor(targetFile, sampleRate, 2, 24, {}, 0);
+    if (writer == nullptr) return false;
 
-    juce::AudioBuffer<float> tempBuffer;
-    tempBuffer.setSize(2, totalSamples);
-    tempBuffer.clear();
-
-    auto mutableThis = const_cast<FoxStudioEngine*>(this);
-    mutableThis->positionSeconds = 0.0;
-
-    for (int i = 0; i < totalSamples; ++i)
+    const int blockSize = 4096;
+    const int totalSamples = static_cast<int>(std::ceil(durationSeconds * sampleRate));
+    juce::AudioBuffer<float> block(2, blockSize);
+    double time = 0.0;
+    for (int offset = 0; offset < totalSamples; offset += blockSize)
     {
-        const double t = static_cast<double>(i) / sampleRate;
-        double sampleValueL = 0.0;
-        double sampleValueR = 0.0;
-
-        for (const auto& definition : trackDefinitions)
-        {
-            if (definition.info.muted)
-                continue;
-
-            const auto gain = juce::Decibels::decibelsToGain(static_cast<float>(definition.info.gainDb));
-            const auto pan = juce::jlimit(-1.0, 1.0, definition.info.pan);
-            for (const auto& note : definition.notes)
-            {
-                const double noteStart = note.startBeat * (60.0 / tempoBpm);
-                const double noteEnd = noteStart + note.lengthBeats * (60.0 / tempoBpm);
-                if (t < noteStart || t > noteEnd)
-                    continue;
-
-                const double notePhase = (t - noteStart) / std::max(0.0001, noteEnd - noteStart);
-                const double frequency = 440.0 * std::pow(2.0, (note.midiNote - 69.0) / 12.0);
-                const double envelope = std::sin(juce::MathConstants<double>::pi * notePhase);
-                const double sine = std::sin(2.0 * juce::MathConstants<double>::pi * frequency * t) * envelope;
-                const double channelScaleL = std::max(0.0, 1.0 - pan) * gain * 0.12;
-                const double channelScaleR = std::max(0.0, 1.0 + pan) * gain * 0.12;
-                sampleValueL += sine * channelScaleL;
-                sampleValueR += sine * channelScaleR;
-            }
-        }
-
-        tempBuffer.setSample(0, i, static_cast<float>(sampleValueL));
-        tempBuffer.setSample(1, i, static_cast<float>(sampleValueR));
+        const int count = std::min(blockSize, totalSamples - offset);
+        block.clear();
+        renderBlock(block, 0, count, time);
+        writer->writeFromAudioSampleData(block.getArrayOfReadPointers(), 2, count, 0);
+        time += static_cast<double>(count) / sampleRate;
     }
-
-    writer->writeFromAudioSampleData(tempBuffer.getArrayOfWritePointers(), 2, totalSamples, 0);
     writer.reset();
     return targetFile.existsAsFile();
 }
 
 void FoxStudioEngine::updateTrack(size_t index, const TrackInfo& track)
 {
-    if (index < tracks.size())
-        tracks[index] = track;
-
-    if (index < trackDefinitions.size())
-        trackDefinitions[index].info = track;
+    if (index < tracks.size()) tracks[index] = track;
+    if (index < trackDefinitions.size()) trackDefinitions[index].info = track;
 }

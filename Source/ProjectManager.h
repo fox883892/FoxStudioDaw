@@ -1,7 +1,15 @@
 #pragma once
 
 #include <juce_core/juce_core.h>
-#include <vector>
+
+struct ProjectTrack
+{
+    juce::String name = "Track";
+    juce::String type = "audio";
+    double gainDb = 0.0;
+    double pan = 0.0;
+    std::vector<MidiNoteData> notes;
+};
 
 struct ProjectSession
 {
@@ -12,6 +20,7 @@ struct ProjectSession
     bool autoSave = true;
     double sampleRate = 44100.0;
     std::vector<juce::String> tracks;
+    std::vector<ProjectTrack> trackData;
 };
 
 class ProjectManager
@@ -26,4 +35,6 @@ public:
 
 private:
     static juce::ValueTree createTrackTree(const juce::String& trackName);
+    static juce::ValueTree createNoteTree(const MidiNoteData& note);
+    static MidiNoteData readNoteTree(const juce::ValueTree& tree);
 };

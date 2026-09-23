@@ -3,6 +3,7 @@
 #include <vector>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class TrackInfo
@@ -29,6 +30,19 @@ public:
     bool armed = false;
 };
 
+struct MidiNoteData
+{
+    int midiNote = 60;
+    double startBeat = 0.0;
+    double lengthBeats = 1.0;
+};
+
+struct TrackDefinition
+{
+    TrackInfo info;
+    std::vector<MidiNoteData> notes;
+};
+
 class FoxStudioEngine
 {
 public:
@@ -53,17 +67,25 @@ public:
     bool isLoopEnabled() const noexcept { return loopEnabled; }
 
     void addTrack(TrackInfo::Type type, const juce::String& name = "Track");
+    void addMidiNoteToTrack(const juce::String& trackName, int midiNote, double startBeat, double lengthBeats);
+    void processAudio(juce::AudioBuffer<float>& buffer, int numSamples);
+    bool exportProjectAsWav(const juce::File& targetFile) const;
+
     std::vector<TrackInfo>& getTracks() noexcept { return tracks; }
     const std::vector<TrackInfo>& getTracks() const noexcept { return tracks; }
+    std::vector<TrackDefinition>& getTrackDefinitions() noexcept { return trackDefinitions; }
+    const std::vector<TrackDefinition>& getTrackDefinitions() const noexcept { return trackDefinitions; }
     void updateTrack(size_t index, const TrackInfo& track);
 
 private:
     juce::AudioDeviceManager deviceManager;
     std::vector<TrackInfo> tracks;
+    std::vector<TrackDefinition> trackDefinitions;
     bool playing = false;
     bool loopEnabled = false;
     double positionSeconds = 0.0;
     double tempoBpm = 120.0;
+    double sampleRate = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FoxStudioEngine)
 };

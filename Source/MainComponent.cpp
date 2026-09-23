@@ -4,73 +4,118 @@
 MainComponent::MainComponent()
 {
     setOpaque(true);
-    setAudioChannels(0, 2);
-    titleLabel.setText("FOX STUDIO DAW — REAL ENGINE", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(22.0f, juce::Font::bold));
-    titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xffff9b54));
     addAndMakeVisible(titleLabel);
+    titleLabel.setText("FOX STUDIO DAW", juce::dontSendNotification);
+    titleLabel.setFont(juce::Font(24.0f, juce::Font::bold));
+    titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xffff9b54));
 
-    for (auto* button : { &newButton, &playButton, &stopButton, &exportButton, &addAudioButton, &addMidiButton, &loopButton })
-        addAndMakeVisible(button);
+    for (auto* control : { &playButton, &stopButton, &resetButton, &audioButton, &midiButton, &loopButton })
+        addAndMakeVisible(control);
 
-    playButton.onClick = [this] { toggleTransport(); };
-    stopButton.onClick = [this] { engine.stopPlayback(); statusLabel.setText("Stopped", juce::dontSendNotification); };
-    newButton.onClick = [this] { resetSession(); };
-    addAudioButton.onClick = [this] { engine.addTrack(TrackInfo::Type::Audio, "Audio " + juce::String(engine.getTracks().size() + 1)); trackLabel.setText(juce::String(engine.getTracks().size()) + " tracks", juce::dontSendNotification); };
-    addMidiButton.onClick = [this] { engine.addTrack(TrackInfo::Type::Midi, "MIDI " + juce::String(engine.getTracks().size() + 1)); trackLabel.setText(juce::String(engine.getTracks().size()) + " tracks", juce::dontSendNotification); };
-    loopButton.onClick = [this] { engine.setLoopEnabled(loopButton.getToggleState()); };
-    exportButton.onClick = [this]
-    {
-        const auto file = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("FOX_STUDIO_Render.wav");
-        statusLabel.setText(engine.exportProjectAsWav(file) ? "WAV exported" : "Export failed", juce::dontSendNotification);
-    };
-
-    transportLabel.setJustificationType(juce::Justification::centred);
-    transportLabel.setFont(juce::Font(18.0f, juce::Font::bold));
-    addAndMakeVisible(transportLabel);
-    statusLabel.setText("Audio engine ready", juce::dontSendNotification);
+    addAndMakeVisible(timeLabel);
+    timeLabel.setJustificationType(juce::Justification::centred);
+    timeLabel.setFont(juce::Font(20.0f, juce::Font::bold));
     addAndMakeVisible(statusLabel);
-    trackLabel.setText(juce::String(engine.getTracks().size()) + " tracks", juce::dontSendNotification);
-    addAndMakeVisible(trackLabel);
+    addAndMakeVisible(tracksLabel);
+
+    playButton.onClick = [this]
+    {
+        if (engine.isPlaying()) engine.pause(); else engine.play();
+        updateStatus();
+    };
+    stopButton.onClick = [this] { engine.stop(); updateStatus(); };
+    resetButton.onClick = [this]
+    {
+        engine.stop();
+        engine.getTracks().clear();
+        engine.addTrack(TrackState::Type::midi, "Lead");
+        updateStatus();
+    };
+    audioButton.onClick = [this] { engine.addTrack(TrackState::Type::audio, "Audio " + juce::String(engine.getTracks().size() + 1)); updateStatus(); };
+    midiButton.onClick = [this] { engine.addTrack(TrackState::Type::midi, "MIDI " + juce::String(engine.getTracks().size() + 1)); updateStatus(); };
+    loopButton.onClick = [this] { engine.setLoop(loopButton.getToggleState()); };
 
     tempoSlider.setRange(40.0, 240.0, 1.0);
     tempoSlider.setValue(engine.getTempo());
     tempoSlider.setTextValueSuffix(" BPM");
     tempoSlider.onValueChange = [this] { engine.setTempo(tempoSlider.getValue()); };
     addAndMakeVisible(tempoSlider);
+
     startTimerHz(30);
+    updateStatus();
 }
 
-MainComponent::~MainComponent() { stopTimer(); shutdownAudio(); }
-void MainComponent::prepareToPlay(int block, double rate) { sampleRate = rate; engine.prepareToPlay(rate); (void) block; }
-void MainComponent::releaseResources() {}
+MainComponent::~MainComponent()
+{
+    stopTimer();
+    shutdownAudio();
+}
+
+void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
+{
+    engine.prepare(sampleRate, samplesPerBlockExpected);
+}
+
 void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& info)
 {
+    if (info.buffer == nullptr)
+        return;
     info.clearActiveBufferRegion();
-    engine.processAudio(*info.buffer, info.startSample, info.numSamples);
+    engine.render(*info.buffer, info.startSample, info.numSamples);
 }
+
+void MainComponent::releaseResources()
+{
+    engine.release();
+}
+
 void MainComponent::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xff121318));
-    g.setColour(juce::Colour(0xff20232b));
-    g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(10.0f), 8.0f);
-    auto area = getLocalBounds().reduced(22); area.removeFromTop(48);
-    g.setColour(juce::Colour(0xff343946));
-    for (int x = area.getX(); x < area.getRight(); x += 80) g.drawVerticalLine(x, (float)area.getY(), (float)area.getBottom());
-    const auto x = area.getX() + (int)(std::fmod(engine.getPosition(), 8.0) / 8.0 * area.getWidth());
-    g.setColour(juce::Colours::red); g.drawVerticalLine(x, (float)area.getY(), (float)area.getBottom(), 2.0f);
+    g.fillAll(juce::Colour(0xff111318));
+    auto area = getLocalBounds().reduced(18);
+    area.removeFromTop(76);
+    g.setColour(juce::Colour(0xff242832));
+    g.fillRoundedRectangle(area.toFloat(), 8.0f);
+    g.setColour(juce::Colour(0xff3a404d));
+    for (int x = area.getX(); x < area.getRight(); x += 80)
+        g.drawVerticalLine(x, static_cast<float>(area.getY()), static_cast<float>(area.getBottom()));
+
+    const auto playhead = area.getX() + static_cast<int>(std::fmod(engine.getPositionSeconds(), 8.0) / 8.0 * area.getWidth());
+    g.setColour(juce::Colours::orange);
+    g.drawVerticalLine(playhead, static_cast<float>(area.getY()), static_cast<float>(area.getBottom()), 2.0f);
 }
+
 void MainComponent::resized()
 {
-    auto area = getLocalBounds().reduced(22); auto bar = area.removeFromTop(48);
-    titleLabel.setBounds(bar.removeFromLeft(300));
-    for (auto* button : { &newButton, &playButton, &stopButton, &exportButton }) button->setBounds(bar.removeFromLeft(90).reduced(2));
-    transportLabel.setBounds(bar.removeFromLeft(130)); statusLabel.setBounds(bar);
+    auto area = getLocalBounds().reduced(18);
+    auto header = area.removeFromTop(40);
+    titleLabel.setBounds(header.removeFromLeft(300));
+    timeLabel.setBounds(header.removeFromLeft(150));
+    statusLabel.setBounds(header);
+
     auto controls = area.removeFromTop(42);
-    addAudioButton.setBounds(controls.removeFromLeft(100).reduced(2)); addMidiButton.setBounds(controls.removeFromLeft(100).reduced(2));
-    trackLabel.setBounds(controls.removeFromLeft(100)); loopButton.setBounds(controls.removeFromLeft(80)); tempoSlider.setBounds(controls);
+    for (auto* control : { &resetButton, &playButton, &stopButton, &audioButton, &midiButton, &loopButton })
+        control->setBounds(controls.removeFromLeft(84).reduced(2));
+    tempoSlider.setBounds(controls.reduced(4));
+    tracksLabel.setBounds(area.removeFromBottom(28));
 }
-void MainComponent::timerCallback() { transportLabel.setText(formatTime(engine.getPosition()), juce::dontSendNotification); repaint(); }
-void MainComponent::toggleTransport() { if (engine.isPlaying()) engine.stopPlayback(); else engine.startPlayback(); playButton.setButtonText(engine.isPlaying() ? "Pause" : "Play"); statusLabel.setText(engine.isPlaying() ? "Playing" : "Paused", juce::dontSendNotification); }
-void MainComponent::resetSession() { engine.stopPlayback(); engine.setPosition(0.0); statusLabel.setText("New session", juce::dontSendNotification); }
-juce::String MainComponent::formatTime(double seconds) const { const auto ms = static_cast<int>(std::round(seconds * 1000.0)); return juce::String::formatted("%02d:%02d.%03d", ms / 60000, (ms / 1000) % 60, ms % 1000); }
+
+void MainComponent::timerCallback()
+{
+    timeLabel.setText(formatTime(engine.getPositionSeconds()), juce::dontSendNotification);
+    repaint();
+}
+
+void MainComponent::updateStatus()
+{
+    playButton.setButtonText(engine.isPlaying() ? "Pause" : "Play");
+    statusLabel.setText(engine.isPlaying() ? "Playing" : "Ready", juce::dontSendNotification);
+    tracksLabel.setText("Tracks: " + juce::String(engine.getTracks().size()), juce::dontSendNotification);
+}
+
+juce::String MainComponent::formatTime(double seconds) const
+{
+    const auto milliseconds = static_cast<int>(std::round(seconds * 1000.0));
+    return juce::String::formatted("%02d:%02d.%03d", milliseconds / 60000,
+                                   (milliseconds / 1000) % 60, milliseconds % 1000);
+}

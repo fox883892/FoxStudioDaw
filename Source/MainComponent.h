@@ -9,24 +9,24 @@ class MainComponent final : public juce::AudioAppComponent, private juce::Timer
 public:
     MainComponent();
     ~MainComponent() override;
+
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
-    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
+    void getNextAudioBlock(const juce::AudioSourceChannelInfo&) override;
     void releaseResources() override;
     void paint(juce::Graphics&) override;
     void resized() override;
 
 private:
     void timerCallback() override;
-    void toggleTransport();
-    void resetSession();
-    juce::String formatTime(double) const;
+    void updateStatus();
+    juce::String formatTime(double seconds) const;
 
     FoxStudioEngine engine;
-    juce::TextButton newButton{"New"}, playButton{"Play"}, stopButton{"Stop"}, exportButton{"Export WAV"};
-    juce::TextButton addAudioButton{"+ Audio"}, addMidiButton{"+ MIDI"};
-    juce::ToggleButton loopButton{"Loop"};
-    juce::Label titleLabel, transportLabel, statusLabel, trackLabel;
+    juce::Label titleLabel, timeLabel, statusLabel, tracksLabel;
+    juce::TextButton playButton { "Play" }, stopButton { "Stop" }, resetButton { "New" };
+    juce::TextButton audioButton { "+ Audio" }, midiButton { "+ MIDI" };
+    juce::ToggleButton loopButton { "Loop" };
     juce::Slider tempoSlider;
-    double sampleRate = 44100.0;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

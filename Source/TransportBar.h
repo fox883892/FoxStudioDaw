@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "FoxStudioEngine.h"
 
@@ -21,7 +22,6 @@ private:
     juce::String formatTime(double seconds) const;
 
     FoxStudioEngine& engine;
-
     juce::TextButton playButton { "Play" };
     juce::TextButton stopButton { "Stop" };
     juce::TextButton resetButton { "Reset" };

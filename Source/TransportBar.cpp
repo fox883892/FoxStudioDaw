@@ -50,21 +50,20 @@ void TransportBar::timerCallback()
 {
     if (engine.isPlaying())
     {
-        const auto current = engine.getPosition() + 1.0 / 30.0;
-        engine.setPosition(current);
-        clockLabel.setText(formatTime(current), juce::dontSendNotification);
+        engine.setPosition(engine.getPosition() + 1.0 / 30.0);
     }
-    else
-    {
-        clockLabel.setText(formatTime(engine.getPosition()), juce::dontSendNotification);
-    }
+
+    clockLabel.setText(formatTime(engine.getPosition()), juce::dontSendNotification);
 }
 
 juce::String TransportBar::formatTime(double seconds) const
 {
-    const auto totalMs = (int)std::round(seconds * 1000.0);
+    const auto totalMs = static_cast<int>(std::round(seconds * 1000.0));
     const auto minutes = totalMs / 60000;
     const auto secs = (totalMs / 1000) % 60;
     const auto ms = totalMs % 1000;
-    return juce::String(minutes).paddedLeft('0', 2) + ":" + juce::String(secs).paddedLeft('0', 2) + "." + juce::String(ms).paddedLeft('0', 3);
+
+    return juce::String(minutes).paddedLeft('0', 2) + ":" +
+           juce::String(secs).paddedLeft('0', 2) + "." +
+           juce::String(ms).paddedLeft('0', 3);
 }

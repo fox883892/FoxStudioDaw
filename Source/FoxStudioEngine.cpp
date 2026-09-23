@@ -3,6 +3,9 @@
 FoxStudioEngine::FoxStudioEngine()
 {
     initialiseAudio();
+    addTrack(TrackInfo::Type::Audio, "Drums");
+    addTrack(TrackInfo::Type::Audio, "Bass");
+    addTrack(TrackInfo::Type::Midi, "Lead");
 }
 
 FoxStudioEngine::~FoxStudioEngine()
@@ -12,11 +15,8 @@ FoxStudioEngine::~FoxStudioEngine()
 
 bool FoxStudioEngine::initialiseAudio()
 {
-    const auto result = deviceManager.initialiseWithDefaultDevices(2, 2);
-    if (result == juce::AudioDeviceManager::InitialisationResult::success)
-        return true;
-
-    return false;
+    const auto result = deviceManager.initialise(2, 2, nullptr, true);
+    return result == juce::AudioDeviceManager::InitialisationResult::success;
 }
 
 void FoxStudioEngine::shutdownAudio()
@@ -44,4 +44,15 @@ void FoxStudioEngine::setPosition(double seconds)
 void FoxStudioEngine::setTempo(double bpm)
 {
     tempoBpm = juce::jlimit(40.0, 240.0, bpm);
+}
+
+void FoxStudioEngine::addTrack(TrackInfo::Type type, const juce::String& name)
+{
+    tracks.emplace_back(type, name);
+}
+
+void FoxStudioEngine::updateTrack(size_t index, const TrackInfo& track)
+{
+    if (index < tracks.size())
+        tracks[index] = track;
 }

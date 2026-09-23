@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "FoxStudioEngine.h"
 
@@ -11,6 +12,7 @@ public:
 
     void paint(juce::Graphics&) override;
     void resized() override;
+    void refresh();
 
     std::function<void()> onAddAudio;
     std::function<void()> onAddMidi;
@@ -20,7 +22,9 @@ private:
     juce::TextButton addAudioButton { "+ Audio" };
     juce::TextButton addMidiButton { "+ MIDI" };
     juce::Label titleLabel;
-    juce::Label trackCountLabel;
+    juce::Label countLabel;
+    juce::Viewport viewport;
+    juce::Component rowsArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackList)
 };

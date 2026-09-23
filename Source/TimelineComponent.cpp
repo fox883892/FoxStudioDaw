@@ -3,11 +3,11 @@
 TimelineComponent::TimelineComponent(FoxStudioEngine& e)
     : engine(e)
 {
-    timeRuler.setText("Timeline", juce::dontSendNotification);
-    timeRuler.setColour(juce::Label::textColourId, juce::Colours::white);
-    addAndMakeVisible(timeRuler);
+    rulerLabel.setText("Timeline", juce::dontSendNotification);
+    rulerLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    addAndMakeVisible(rulerLabel);
 
-    viewport.setViewedComponent(&timelineArea, false);
+    viewport.setViewedComponent(&content, false);
     viewport.setScrollBarsShown(true, true);
     addAndMakeVisible(viewport);
 
@@ -25,17 +25,20 @@ void TimelineComponent::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xff2e3340));
     g.drawRect(getLocalBounds(), 1);
 
-    const auto pos = (int)(engine.getPosition() * 100.0f);
+    for (int x = 20; x < getWidth(); x += 80)
+        g.drawVerticalLine(x, 0.0f, (float)getHeight(), 1.0f);
+
+    const int playheadX = (int)(engine.getPosition() * 100.0f);
     g.setColour(juce::Colours::red);
-    g.drawVerticalLine(pos + 20, 0.0f, (float)getHeight(), 2.0f);
+    g.drawVerticalLine(playheadX, 0.0f, (float)getHeight(), 2.0f);
 }
 
 void TimelineComponent::resized()
 {
     auto area = getLocalBounds();
-    timeRuler.setBounds(area.removeFromTop(24));
+    rulerLabel.setBounds(area.removeFromTop(24));
     viewport.setBounds(area);
-    timelineArea.setSize(1400, 400);
+    content.setSize(1400, 400);
 }
 
 void TimelineComponent::timerCallback()

@@ -5,6 +5,9 @@
 #include "TransportBar.h"
 #include "TrackList.h"
 #include "TimelineComponent.h"
+#include "MixerComponent.h"
+#
+class AIAdvisor;
 
 class MainComponent final : public juce::Component, private juce::Timer
 {
@@ -25,10 +28,12 @@ private:
     TransportBar transportBar{ engine };
     TrackList trackList{ engine };
     TimelineComponent timeline{ engine };
-
+    MixerComponent mixerComponent{ engine };
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Label titleLabel;
     juce::Label statusLabel;
+    juce::Label aiSummaryLabel;
+    AIAdvisor* aiAdvisor = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

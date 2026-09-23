@@ -6,8 +6,8 @@
 #include "TrackList.h"
 #include "TimelineComponent.h"
 #include "MixerComponent.h"
-#
-class AIAdvisor;
+#include "PianoRollComponent.h"
+#include "AI/AiAdvisor.h"
 
 class MainComponent final : public juce::Component, private juce::Timer
 {
@@ -23,17 +23,21 @@ private:
     void togglePlay();
     void stopPlayback();
     void resetSession();
+    void updateAiStatus();
 
     FoxStudioEngine engine;
     TransportBar transportBar{ engine };
     TrackList trackList{ engine };
     TimelineComponent timeline{ engine };
     MixerComponent mixerComponent{ engine };
+    PianoRollComponent pianoRollComponent;
+
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Label titleLabel;
     juce::Label statusLabel;
     juce::Label aiSummaryLabel;
-    AIAdvisor* aiAdvisor = nullptr;
+
+    AIAdvisor aiAdvisor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

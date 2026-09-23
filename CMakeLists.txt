@@ -19,6 +19,7 @@ juce_add_gui_app(FoxStudioDaw
     COMPANY_NAME "Fox Studio"
     BUNDLE_ID com.foxstudio.daw
     VERSION "${PROJECT_VERSION}")
+
 juce_generate_juce_header(FoxStudioDaw)
 
 target_sources(FoxStudioDaw PRIVATE
@@ -27,7 +28,15 @@ target_sources(FoxStudioDaw PRIVATE
     Source/FoxStudioEngine.cpp
     Source/TransportBar.cpp
     Source/TrackList.cpp
-    Source/TimelineComponent.cpp)
+    Source/TimelineComponent.cpp
+    Source/MixerComponent.cpp
+    Source/PianoRollComponent.cpp
+    Source/DSP/DspChain.cpp
+    Source/DSP/GainProcessor.cpp
+    Source/DSP/EqProcessor.cpp
+    Source/DSP/CompressorProcessor.cpp
+    Source/DSP/LimiterProcessor.cpp
+    Source/DSP/SaturationProcessor.cpp)
 
 target_compile_definitions(FoxStudioDaw PRIVATE
     JUCE_WEB_BROWSER=0

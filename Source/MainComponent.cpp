@@ -1,5 +1,6 @@
 #include "MainComponent.h"
-#include "AI/AiAdvisor.h"
+
+#include <cmath>
 
 MainComponent::MainComponent()
 {
@@ -21,26 +22,33 @@ MainComponent::MainComponent()
     addAndMakeVisible(transportBar);
     addAndMakeVisible(trackList);
     addAndMakeVisible(tabs);
+
     tabs.addTab("Timeline", juce::Colour(0xff1f2128), &timeline, true);
     tabs.addTab("Mixer", juce::Colour(0xff1f2128), &mixerComponent, false);
+    tabs.addTab("Piano Roll", juce::Colour(0xff1f2128), &pianoRollComponent, false);
     tabs.setTabBarDepth(30);
 
     transportBar.onPlay = [this] { togglePlay(); };
     transportBar.onStop = [this] { stopPlayback(); };
     transportBar.onReset = [this] { resetSession(); };
 
-    trackList.onAddAudio = [this] { engine.addTrack(TrackInfo::Type::Audio, "Audio Track"); trackList.refresh(); };
-    trackList.onAddMidi = [this] { engine.addTrack(TrackInfo::Type::Midi, "Midi Track"); trackList.refresh(); };
+    trackList.onAddAudio = [this]
+    {
+        engine.addTrack(TrackInfo::Type::Audio, "Audio Track");
+        trackList.refresh();
+    };
 
-    aiAdvisor = new AIAdvisor();
+    trackList.onAddMidi = [this]
+    {
+        engine.addTrack(TrackInfo::Type::Midi, "Midi Track");
+        trackList.refresh();
+    };
+
     startTimerHz(15);
+    updateAiStatus();
 }
 
-MainComponent::~MainComponent()
-{
-    stopTimer();
-    delete aiAdvisor;
-}
+MainComponent::~MainComponent() = default;
 
 void MainComponent::paint(juce::Graphics& g)
 {
@@ -55,7 +63,7 @@ void MainComponent::resized()
 
     titleLabel.setBounds(area.removeFromTop(32));
     statusLabel.setBounds(area.removeFromTop(22));
-    aiSummaryLabel.setBounds(area.removeFromTop(26));
+    aiSummaryLabel.setBounds(area.removeFromTop(28));
     transportBar.setBounds(area.removeFromTop(54));
 
     auto content = area.reduced(4);
@@ -68,12 +76,7 @@ void MainComponent::timerCallback()
     if (engine.isPlaying())
         engine.setPosition(engine.getPosition() + 1.0 / 15.0);
 
-    const float rms = 0.08f + 0.12f * std::sin((float)engine.getPosition() * 0.25f);
-    const float peak = 0.6f + 0.3f * std::sin((float)engine.getPosition() * 0.7f);
-    const float lufs = -18.0f + 6.0f * std::sin((float)engine.getPosition() * 0.3f);
-    const auto rec = aiAdvisor->analyse(rms, peak, lufs, 1500.0f, peak > 0.85f, engine.isPlaying());
-
-    aiSummaryLabel.setText("AI: " + rec.summary, juce::dontSendNotification);
+    updateAiStatus();
     repaint();
 }
 
@@ -99,4 +102,15 @@ void MainComponent::resetSession()
     engine.setPosition(0.0);
     statusLabel.setText("Ready", juce::dontSendNotification);
     aiSummaryLabel.setText("AI: waiting for analysis", juce::dontSendNotification);
+}
+
+void MainComponent::updateAiStatus()
+{
+    const float time = static_cast<float>(engine.getPosition());
+    const float rms = 0.08f + 0.12f * std::sin(time * 0.25f);
+    const float peak = 0.62f + 0.28f * std::sin(time * 0.7f);
+    const float lufs = -20.0f + 7.0f * std::sin(time * 0.3f);
+
+    const auto recommendation = aiAdvisor.analyse(rms, peak, lufs, 1500.0f, peak > 0.85f, engine.isPlaying());
+    aiSummaryLabel.setText("AI: " + recommendation.summary, juce::dontSendNotification);
 }

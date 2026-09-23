@@ -3,6 +3,13 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "FoxStudioEngine.h"
+#include "ProjectManager.h"
+#include "TransportBar.h"
+#include "TrackList.h"
+#include "TimelineComponent.h"
+#include "MixerComponent.h"
+#include "PianoRollComponent.h"
+#include "AI/AiAdvisor.h"
 
 class MainComponent final : public juce::AudioAppComponent, private juce::Timer
 {
@@ -18,15 +25,25 @@ public:
 
 private:
     void timerCallback() override;
-    void updateStatus();
-    juce::String formatTime(double seconds) const;
+    void togglePlay();
+    void stopPlayback();
+    void resetSession();
+    void updateAiStatus();
+    void saveCurrentProject();
+    void loadDefaultProject();
 
     FoxStudioEngine engine;
-    juce::Label titleLabel, timeLabel, statusLabel, tracksLabel;
-    juce::TextButton playButton { "Play" }, stopButton { "Stop" }, resetButton { "New" };
-    juce::TextButton audioButton { "+ Audio" }, midiButton { "+ MIDI" };
-    juce::ToggleButton loopButton { "Loop" };
-    juce::Slider tempoSlider;
+    ProjectManager projectManager;
+    ProjectSession currentSession;
+    TransportBar transportBar { engine };
+    TrackList trackList { engine };
+    TimelineComponent timeline { engine };
+    MixerComponent mixerComponent { engine };
+    PianoRollComponent pianoRollComponent;
+    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    juce::Label titleLabel, projectLabel, statusLabel, aiSummaryLabel;
+    juce::TextButton saveButton { "Save" }, loadButton { "Load" }, exportButton { "Export" };
+    AIAdvisor aiAdvisor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

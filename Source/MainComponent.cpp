@@ -4,45 +4,44 @@
 MainComponent::MainComponent()
 {
     setOpaque(true);
-    addAndMakeVisible(titleLabel);
+    currentSession = projectManager.createDefaultSession();
+
     titleLabel.setText("FOX STUDIO DAW", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(24.0f, juce::Font::bold));
+    titleLabel.setFont(juce::Font(22.0f, juce::Font::bold));
     titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xffff9b54));
-
-    for (auto* control : { &playButton, &stopButton, &resetButton, &audioButton, &midiButton, &loopButton })
-        addAndMakeVisible(control);
-
-    addAndMakeVisible(timeLabel);
-    timeLabel.setJustificationType(juce::Justification::centred);
-    timeLabel.setFont(juce::Font(20.0f, juce::Font::bold));
+    addAndMakeVisible(titleLabel);
+    projectLabel.setText(currentSession.name, juce::dontSendNotification);
+    addAndMakeVisible(projectLabel);
+    statusLabel.setText("Audio engine ready", juce::dontSendNotification);
     addAndMakeVisible(statusLabel);
-    addAndMakeVisible(tracksLabel);
+    aiSummaryLabel.setText("AI: waiting for audio", juce::dontSendNotification);
+    aiSummaryLabel.setColour(juce::Label::textColourId, juce::Colour(0xff8be3a8));
+    addAndMakeVisible(aiSummaryLabel);
 
-    playButton.onClick = [this]
-    {
-        if (engine.isPlaying()) engine.pause(); else engine.play();
-        updateStatus();
-    };
-    stopButton.onClick = [this] { engine.stop(); updateStatus(); };
-    resetButton.onClick = [this]
-    {
-        engine.stop();
-        engine.getTracks().clear();
-        engine.addTrack(TrackState::Type::midi, "Lead");
-        updateStatus();
-    };
-    audioButton.onClick = [this] { engine.addTrack(TrackState::Type::audio, "Audio " + juce::String(engine.getTracks().size() + 1)); updateStatus(); };
-    midiButton.onClick = [this] { engine.addTrack(TrackState::Type::midi, "MIDI " + juce::String(engine.getTracks().size() + 1)); updateStatus(); };
-    loopButton.onClick = [this] { engine.setLoop(loopButton.getToggleState()); };
+    for (auto* button : { &saveButton, &loadButton, &exportButton })
+        addAndMakeVisible(button);
+    saveButton.onClick = [this] { saveCurrentProject(); };
+    loadButton.onClick = [this] { loadDefaultProject(); };
+    exportButton.onClick = [this] { statusLabel.setText("Render integration pending", juce::dontSendNotification); };
 
-    tempoSlider.setRange(40.0, 240.0, 1.0);
-    tempoSlider.setValue(engine.getTempo());
-    tempoSlider.setTextValueSuffix(" BPM");
-    tempoSlider.onValueChange = [this] { engine.setTempo(tempoSlider.getValue()); };
-    addAndMakeVisible(tempoSlider);
+    addAndMakeVisible(transportBar);
+    transportBar.onPlay = [this] { togglePlay(); };
+    transportBar.onStop = [this] { stopPlayback(); };
+    transportBar.onReset = [this] { resetSession(); };
 
-    startTimerHz(30);
-    updateStatus();
+    addAndMakeVisible(trackList);
+    trackList.onAddAudio = [this] { engine.addTrack(TrackState::Type::audio, "Audio Track"); trackList.refresh(); mixerComponent.refresh(); };
+    trackList.onAddMidi = [this] { engine.addTrack(TrackState::Type::midi, "MIDI Track"); trackList.refresh(); mixerComponent.refresh(); };
+
+    addAndMakeVisible(tabs);
+    tabs.addTab("Timeline", juce::Colour(0xff1f2128), &timeline, false);
+    tabs.addTab("Mixer", juce::Colour(0xff1f2128), &mixerComponent, false);
+    tabs.addTab("Piano Roll", juce::Colour(0xff1f2128), &pianoRollComponent, false);
+    tabs.setTabBarDepth(30);
+
+    setAudioChannels(0, 2);
+    startTimerHz(15);
+    updateAiStatus();
 }
 
 MainComponent::~MainComponent()
@@ -53,7 +52,7 @@ MainComponent::~MainComponent()
 
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
-    engine.prepare(sampleRate, samplesPerBlockExpected);
+    engine.prepareToPlay(sampleRate, samplesPerBlockExpected);
 }
 
 void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& info)
@@ -64,58 +63,85 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& info)
     engine.render(*info.buffer, info.startSample, info.numSamples);
 }
 
-void MainComponent::releaseResources()
-{
-    engine.release();
-}
+void MainComponent::releaseResources() { engine.releaseResources(); }
 
 void MainComponent::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xff111318));
-    auto area = getLocalBounds().reduced(18);
-    area.removeFromTop(76);
-    g.setColour(juce::Colour(0xff242832));
-    g.fillRoundedRectangle(area.toFloat(), 8.0f);
-    g.setColour(juce::Colour(0xff3a404d));
-    for (int x = area.getX(); x < area.getRight(); x += 80)
-        g.drawVerticalLine(x, static_cast<float>(area.getY()), static_cast<float>(area.getBottom()));
-
-    const auto playhead = area.getX() + static_cast<int>(std::fmod(engine.getPositionSeconds(), 8.0) / 8.0 * area.getWidth());
-    g.setColour(juce::Colours::orange);
-    g.drawVerticalLine(playhead, static_cast<float>(area.getY()), static_cast<float>(area.getBottom()), 2.0f);
+    g.fillAll(juce::Colour(0xff121318));
+    g.setColour(juce::Colour(0xff20232b));
+    g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(10.0f), 8.0f);
 }
 
 void MainComponent::resized()
 {
-    auto area = getLocalBounds().reduced(18);
-    auto header = area.removeFromTop(40);
-    titleLabel.setBounds(header.removeFromLeft(300));
-    timeLabel.setBounds(header.removeFromLeft(150));
-    statusLabel.setBounds(header);
-
-    auto controls = area.removeFromTop(42);
-    for (auto* control : { &resetButton, &playButton, &stopButton, &audioButton, &midiButton, &loopButton })
-        control->setBounds(controls.removeFromLeft(84).reduced(2));
-    tempoSlider.setBounds(controls.reduced(4));
-    tracksLabel.setBounds(area.removeFromBottom(28));
+    auto area = getLocalBounds().reduced(14);
+    titleLabel.setBounds(area.removeFromTop(28));
+    projectLabel.setBounds(area.removeFromTop(20));
+    statusLabel.setBounds(area.removeFromTop(20));
+    aiSummaryLabel.setBounds(area.removeFromTop(22));
+    auto buttons = area.removeFromTop(32);
+    saveButton.setBounds(buttons.removeFromLeft(80).reduced(2));
+    loadButton.setBounds(buttons.removeFromLeft(80).reduced(2));
+    exportButton.setBounds(buttons.removeFromLeft(90).reduced(2));
+    transportBar.setBounds(area.removeFromTop(52));
+    auto body = area.reduced(4);
+    trackList.setBounds(body.removeFromLeft(220));
+    tabs.setBounds(body);
 }
 
 void MainComponent::timerCallback()
 {
-    timeLabel.setText(formatTime(engine.getPositionSeconds()), juce::dontSendNotification);
+    updateAiStatus();
     repaint();
 }
 
-void MainComponent::updateStatus()
+void MainComponent::togglePlay()
 {
-    playButton.setButtonText(engine.isPlaying() ? "Pause" : "Play");
-    statusLabel.setText(engine.isPlaying() ? "Playing" : "Ready", juce::dontSendNotification);
-    tracksLabel.setText("Tracks: " + juce::String(engine.getTracks().size()), juce::dontSendNotification);
+    if (engine.isPlaying()) engine.pause(); else engine.startPlayback();
+    statusLabel.setText(engine.isPlaying() ? "Playing" : "Paused", juce::dontSendNotification);
 }
 
-juce::String MainComponent::formatTime(double seconds) const
+void MainComponent::stopPlayback()
 {
-    const auto milliseconds = static_cast<int>(std::round(seconds * 1000.0));
-    return juce::String::formatted("%02d:%02d.%03d", milliseconds / 60000,
-                                   (milliseconds / 1000) % 60, milliseconds % 1000);
+    engine.stopPlayback();
+    statusLabel.setText("Stopped", juce::dontSendNotification);
+}
+
+void MainComponent::resetSession()
+{
+    engine.stopPlayback();
+    engine.setPosition(0.0);
+    statusLabel.setText("Session reset", juce::dontSendNotification);
+}
+
+void MainComponent::updateAiStatus()
+{
+    const float t = static_cast<float>(engine.getPosition());
+    const float peak = 0.55f + 0.25f * std::sin(t * 0.7f);
+    const float lufs = -20.0f + 6.0f * std::sin(t * 0.3f);
+    const auto result = aiAdvisor.analyse(0.1f, peak, lufs, 1200.0f, peak > 0.95f, engine.isPlaying());
+    aiSummaryLabel.setText("AI: " + result.summary, juce::dontSendNotification);
+}
+
+void MainComponent::saveCurrentProject()
+{
+    auto directory = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("foxstudio");
+    directory.createDirectory();
+    const auto file = directory.getChildFile(currentSession.name + ".foxproj");
+    currentSession.tempo = static_cast<int>(engine.getTempo());
+    currentSession.loop = engine.isLoopEnabled();
+    currentSession.tracks.clear();
+    for (const auto& track : engine.getTracks()) currentSession.tracks.push_back(track.name);
+    statusLabel.setText(projectManager.saveToFile(file, currentSession) ? "Project saved" : "Save failed", juce::dontSendNotification);
+}
+
+void MainComponent::loadDefaultProject()
+{
+    auto directory = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("foxstudio");
+    const auto file = directory.getChildFile(currentSession.name + ".foxproj");
+    currentSession = projectManager.loadFromFile(file);
+    engine.setTempo(currentSession.tempo);
+    engine.setLoopEnabled(currentSession.loop);
+    projectLabel.setText(currentSession.name, juce::dontSendNotification);
+    statusLabel.setText("Project loaded", juce::dontSendNotification);
 }

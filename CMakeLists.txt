@@ -1,14 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
-project(FoxStudioDaw VERSION 0.2.0 LANGUAGES CXX)
+project(FoxStudioDaw VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
-
-FetchContent_Declare(
-    JUCE
+FetchContent_Declare(JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
     GIT_TAG 8.0.4
     GIT_SHALLOW TRUE)
@@ -19,7 +17,6 @@ juce_add_gui_app(FoxStudioDaw
     COMPANY_NAME "Fox Studio"
     BUNDLE_ID com.foxstudio.daw
     VERSION "${PROJECT_VERSION}")
-
 juce_generate_juce_header(FoxStudioDaw)
 
 target_sources(FoxStudioDaw PRIVATE
@@ -42,23 +39,15 @@ target_sources(FoxStudioDaw PRIVATE
     Source/DSP/LimiterProcessor.cpp
     Source/DSP/SaturationProcessor.cpp)
 
-target_include_directories(FoxStudioDaw PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Source)
-
+target_include_directories(FoxStudioDaw PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_definitions(FoxStudioDaw PRIVATE
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
     JUCE_APPLICATION_NAME_STRING="FOX STUDIO DAW"
     JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}"
-    JUCE_DISPLAY_SPLASH_SCREEN=0
-    JUCE_REPORT_APP_USAGE=0)
-
+    JUCE_DISPLAY_SPLASH_SCREEN=0 JUCE_REPORT_APP_USAGE=0)
 target_link_libraries(FoxStudioDaw PRIVATE
-    juce::juce_audio_utils
-    juce::juce_audio_formats
-    juce::juce_gui_extra
-    juce::juce_dsp
-    juce::juce_recommended_config_flags
+    juce::juce_audio_utils juce::juce_audio_formats juce::juce_gui_extra
+    juce::juce_dsp juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
 
 if(MSVC)

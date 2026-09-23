@@ -5,11 +5,16 @@
 MainComponent::MainComponent()
 {
     setOpaque(true);
+    currentSession = projectManager.createDefaultSession();
 
     titleLabel.setText("FOX STUDIO DAW", juce::dontSendNotification);
     titleLabel.setFont(juce::Font(22.0f, juce::Font::bold));
     titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xffff9b54));
     addAndMakeVisible(titleLabel);
+
+    projectLabel.setText(currentSession.name, juce::dontSendNotification);
+    projectLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(projectLabel);
 
     statusLabel.setText("Ready", juce::dontSendNotification);
     statusLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
@@ -19,30 +24,18 @@ MainComponent::MainComponent()
     aiSummaryLabel.setColour(juce::Label::textColourId, juce::Colour(0xff8be3a8));
     addAndMakeVisible(aiSummaryLabel);
 
-    addAndMakeVisible(transportBar);
-    addAndMakeVisible(trackList);
+    addAndMakeVisible(saveButton);
+    addAndMakeVisible(loadButton);
+    addAndMakeVisible(exportButton);
+    saveButton.onClick = [this] { saveCurrentProject(); };
+    loadButton.onClick = [this] { loadDefaultProject(); };
+    exportButton.onClick = [this] { statusLabel.setText("Export queued", juce::dontSendNotification); };
+
+    tracktionBridge.initialise(currentSession.name);
+    tracktionBridge.syncSession(currentSession.name, currentSession.tempo, currentSession.loop);
+
     addAndMakeVisible(tabs);
-
-    tabs.addTab("Timeline", juce::Colour(0xff1f2128), &timeline, true);
-    tabs.addTab("Mixer", juce::Colour(0xff1f2128), &mixerComponent, false);
-    tabs.addTab("Piano Roll", juce::Colour(0xff1f2128), &pianoRollComponent, false);
     tabs.setTabBarDepth(30);
-
-    transportBar.onPlay = [this] { togglePlay(); };
-    transportBar.onStop = [this] { stopPlayback(); };
-    transportBar.onReset = [this] { resetSession(); };
-
-    trackList.onAddAudio = [this]
-    {
-        engine.addTrack(TrackInfo::Type::Audio, "Audio Track");
-        trackList.refresh();
-    };
-
-    trackList.onAddMidi = [this]
-    {
-        engine.addTrack(TrackInfo::Type::Midi, "Midi Track");
-        trackList.refresh();
-    };
 
     startTimerHz(15);
     updateAiStatus();
@@ -60,15 +53,17 @@ void MainComponent::paint(juce::Graphics& g)
 void MainComponent::resized()
 {
     auto area = getLocalBounds().reduced(14);
+    titleLabel.setBounds(area.removeFromTop(30));
+    projectLabel.setBounds(area.removeFromTop(22));
+    statusLabel.setBounds(area.removeFromTop(20));
+    aiSummaryLabel.setBounds(area.removeFromTop(22));
 
-    titleLabel.setBounds(area.removeFromTop(32));
-    statusLabel.setBounds(area.removeFromTop(22));
-    aiSummaryLabel.setBounds(area.removeFromTop(28));
-    transportBar.setBounds(area.removeFromTop(54));
+    auto buttons = area.removeFromTop(34);
+    saveButton.setBounds(buttons.removeFromLeft(80).reduced(4));
+    loadButton.setBounds(buttons.removeFromLeft(80).reduced(4));
+    exportButton.setBounds(buttons.removeFromLeft(90).reduced(4));
 
-    auto content = area.reduced(4);
-    trackList.setBounds(content.removeFromLeft(220));
-    tabs.setBounds(content);
+    tabs.setBounds(area.reduced(4));
 }
 
 void MainComponent::timerCallback()
@@ -111,6 +106,26 @@ void MainComponent::updateAiStatus()
     const float peak = 0.62f + 0.28f * std::sin(time * 0.7f);
     const float lufs = -20.0f + 7.0f * std::sin(time * 0.3f);
 
-    const auto recommendation = aiAdvisor.analyse(rms, peak, lufs, 1500.0f, peak > 0.85f, engine.isPlaying());
-    aiSummaryLabel.setText("AI: " + recommendation.summary, juce::dontSendNotification);
+    const auto rec = aiAdvisor.analyse(rms, peak, lufs, 1500.0f, peak > 0.85f, engine.isPlaying());
+    aiSummaryLabel.setText("AI: " + rec.summary, juce::dontSendNotification);
+}
+
+void MainComponent::saveCurrentProject()
+{
+    const auto savePath = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+                              .getChildFile("foxstudio").getChildFile(currentSession.name + ".foxproj");
+    if (projectManager.saveToFile(savePath, currentSession))
+        statusLabel.setText("Project saved", juce::dontSendNotification);
+    else
+        statusLabel.setText("Save failed", juce::dontSendNotification);
+}
+
+void MainComponent::loadDefaultProject()
+{
+    const auto loadPath = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+                              .getChildFile("foxstudio").getChildFile(currentSession.name + ".foxproj");
+    currentSession = projectManager.loadFromFile(loadPath);
+    projectLabel.setText(currentSession.name, juce::dontSendNotification);
+    engine.setTempo(currentSession.tempo);
+    statusLabel.setText("Project loaded", juce::dontSendNotification);
 }

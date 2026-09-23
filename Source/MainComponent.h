@@ -2,12 +2,8 @@
 
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "FoxStudioEngine.h"
-#include "TransportBar.h"
-#include "TrackList.h"
-#include "TimelineComponent.h"
-#include "MixerComponent.h"
-#include "PianoRollComponent.h"
-#include "AI/AiAdvisor.h"
+#include "ProjectManager.h"
+#include "TracktionBridge.h"
 
 class MainComponent final : public juce::Component, private juce::Timer
 {
@@ -24,20 +20,23 @@ private:
     void stopPlayback();
     void resetSession();
     void updateAiStatus();
+    void saveCurrentProject();
+    void loadDefaultProject();
 
     FoxStudioEngine engine;
-    TransportBar transportBar{ engine };
-    TrackList trackList{ engine };
-    TimelineComponent timeline{ engine };
-    MixerComponent mixerComponent{ engine };
-    PianoRollComponent pianoRollComponent;
-
-    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    ProjectManager projectManager;
+    TracktionBridge tracktionBridge;
     juce::Label titleLabel;
     juce::Label statusLabel;
     juce::Label aiSummaryLabel;
+    juce::Label projectLabel;
+    juce::TextButton saveButton { "Save" };
+    juce::TextButton loadButton { "Load" };
+    juce::TextButton exportButton { "Export" };
+    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    juce::Component contentArea;
 
-    AIAdvisor aiAdvisor;
+    ProjectSession currentSession;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

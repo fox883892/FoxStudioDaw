@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
-
 FetchContent_Declare(
     JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
@@ -31,6 +30,10 @@ target_sources(FoxStudioDaw PRIVATE
     Source/TimelineComponent.cpp
     Source/MixerComponent.cpp
     Source/PianoRollComponent.cpp
+    Source/ProjectManager.cpp
+    Source/TracktionBridge.cpp
+    Source/ProjectSummary.cpp
+    Source/ExportManager.cpp
     Source/DSP/DspChain.cpp
     Source/DSP/GainProcessor.cpp
     Source/DSP/EqProcessor.cpp
